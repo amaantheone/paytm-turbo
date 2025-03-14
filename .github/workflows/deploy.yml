@@ -3,7 +3,7 @@ name: Build and Deploy to Docker Hub
 on:
   push:
     branches:
-      - master
+      - master  # Adjusted to trigger on pushes to master
 
 jobs:
   build-and-push:
@@ -11,6 +11,9 @@ jobs:
     steps:
     - name: Check Out Repo
       uses: actions/checkout@v2
+
+    - name: Prepare Dockerfile
+      run: cp ./docker/Dockerfile.user ./Dockerfile
 
     - name: Log in to Docker Hub
       uses: docker/login-action@v1
@@ -22,9 +25,21 @@ jobs:
       uses: docker/build-push-action@v2
       with:
         context: .
-        file: ./docker/Dockerfile.user
+        file: ./Dockerfile
         push: true
         tags: amaantheone/paytm-turbo:latest
 
     - name: Verify Pushed Image
       run: docker pull amaantheone/paytm-turbo:latest
+
+    - name: Deploy to EC2
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.SSH_HOST }}
+        username: ${{ secrets.SSH_USERNAME }}
+        key: ${{ secrets.SSH_KEY }}
+        script: |
+          sudo docker pull amaantheone/paytm-turbo:latest
+          sudo docker stop paytm-turbo || true
+          sudo docker rm paytm-turbo || true
+          sudo docker run -d --name paytm-turbo -p 3005:3000 amaantheone/paytm-turbo:latest
